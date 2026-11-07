@@ -1,36 +1,45 @@
 name: Build My VeePN Ultimate APK
-
 on:
-workflow_dispatch:
-push:
-branches:
-- main
-- master
-
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 jobs:
-build-apk:
-runs-on: ubuntu-latest
-steps:
-- name: Checkout Repository
-uses: actions/checkout@v4
-
-- name: Extract ZIP File
-run: unzip -o "*.zip" || true
-
-- name: Set up JDK 17
-uses: actions/setup-java@v5
-with:
-java-version: '17'
-distribution: 'temurin'
-
-- name: Compile and Build APK
-run: |
-NDK_PATH=$(ls -d$ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
-if [ -z "$NDK_PATH" ]; then
-echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.2.12479018"
-NDK_PATH="$ANDROID_HOME/ndk/27.2.12479018"
-fi
-mkdir -p android/app/src/main/jniLibs/arm64-v8a
-git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git || true
-if [ -d "hev-socks5-tunnel" ]; then
-$NDK_PATH/ndk-
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Extract ZIP File
+        run: unzip -o "*.zip" || true
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Compile and Build APK
+        run: |
+          NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
+          if [ -z "$NDK_PATH" ]; then
+            echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.2.12479018"
+            NDK_PATH="$ANDROID_HOME/ndk/27.2.12479018"
+          fi
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git || true
+          if [ -d "hev-socks5-tunnel" ]; then
+            $NDK_PATH/ndk-build -C hev-socks5-tunnel NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=Android.mk APP_ABI=arm64-v8a APP_PLATFORM=android-29 APP_LDFLAGS="-Wl,-z,max-page-size=16384" || true
+            cp -r hev-socks5-tunnel/libs/* android/app/src/main/jniLibs/ 2>/dev/null || true
+          fi
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Build Signed Debug APK
+        working-directory: ./android
+        run: |
+          chmod +x gradlew || true
+          gradle assembleDebug --no-daemon
+      - name: Upload Ready-to-Install APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: My-VeePN-Ultimate-arm64-v8a-APK
+          path: android/app/build/outputs/apk/debug/*.apk
