@@ -88,9 +88,11 @@ class VeePnApiClient {
                     val ipJson = JSONObject(ipResp.body?.string() ?: "{}")
                     resolvedIp = ipJson.optString("ip", host)
                     val countryCode = ipJson.optString("country_code", "NL").uppercase()
-                    flagEmoji = countryCode.codePoints().map { c -> c + 0x1F1E6 - 'A'.code }.collect(
-                        StringBuilder(), { sb, c -> sb.appendCodePoint(c) }, { _, _ -> }
-                    ).toString()
+                    val sb = StringBuilder()
+                    for (ch in countryCode) {
+                        sb.appendCodePoint(ch.code + 0x1F1E6 - 'A'.code)
+                    }
+                    flagEmoji = sb.toString()
                 }
             }
 
