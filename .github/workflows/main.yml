@@ -1,59 +1,51 @@
 name: Build My VeePN Ultimate APK (1-File ZIP Mode)
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ "main", "master" ]
+workflow_dispatch:
+push:
+branches: [ "main", "master" ]
 
 jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+build-apk:
+runs-on: ubuntu-latest
+steps:
+- name: Checkout Repository
+uses: actions/checkout@v4
 
-      - name: Automatically Extract Uploaded ZIP File (If Present)
-        run: |
-          for z in *.zip; do
-            if [ -f "$z" ]; then
-              echo "Extracting $z..."
-              unzip -o "$z"
-            fi
-          done
-          ls -la
+- name: Automatically Extract Uploaded ZIP File (If Present)
+run: |
+for z in *.zip; do
+if [ -f "$z" ]; then
+echo "Extracting $z..."
+unzip -o "$z"
+fi
+done
+ls -la
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+- name: Set up JDK 17
+uses: actions/setup-java@v5
+with:
+java-version: '17'
+distribution: 'temurin'
 
-      - name: Setup Android SDK & NDK (r27c for 16KB Page Size)
-        uses: android-actions/setup-android@v3
+- name: Install NDK & Compile Tunnel Engine (arm64-v8a)
+run: |
+# Use pre-installed NDK if present, otherwise install via sdkmanager
+NDK_PATH=$(ls -d$ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
+if [ -z "$NDK_PATH" ]; then
+echo "Installing NDK via sdkmanager..."
+echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.2.12479018"
+NDK_PATH="$ANDROID_HOME/ndk/27.2.12479018"
+fi
+echo "Using NDK at: $NDK_PATH"
 
-      - name: Install NDK r27c & Build hev-socks5-tunnel (arm64-v8a)
-        run: |
-          sdkmanager --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0"
-          git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git
-          mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          $ANDROID_HOME/ndk/27.2.12479018/ndk-build -C hev-socks5-tunnel \
-            APP_ABI=arm64-v8a \
-            APP_PLATFORM=android-29 \
-            APP_LDFLAGS="-Wl,-z,max-page-size=16384" \
-            NDK_LIBS_OUT=$(pwd)/android/app/src/main/jniLibs
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.9'
-
-      - name: Build Signed Debug APK (arm64-v8a)
-        working-directory: ./android
-        run: |
-          gradle assembleDebug --no-daemon
-
-      - name: Upload Ready-to-Install APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: My-VeePN-Ultimate-arm64-v8a-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+# Clone and compile hev-socks5-tunnel C engine
+mkdir -p android/app/src/main/jniLibs/arm64-v8a
+git clone --recursive https://github.com/heiher/hev-socks5-tunnel.git || true
+if [ -d "hev-socks5-tunnel" ]; then
+$NDK_PATH/ndk-build -C hev-socks5-tunnel \
+NDK_PROJECT_PATH=. \
+APP_BUILD_SCRIPT=Android.mk \
+APP_ABI=arm64-v8a \
+APP_PLATFORM=android-29 \
+APP_LDFLAGS="-Wl,-
